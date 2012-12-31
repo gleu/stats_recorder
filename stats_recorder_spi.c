@@ -41,6 +41,7 @@ static bool    debug = true;
 void	_PG_init(void);
 
 static bool	got_sigterm = false;
+static bool	got_sighup = false;
 
 static void
 worker_spi_sigterm(SIGNAL_ARGS)
@@ -64,6 +65,8 @@ worker_spi_sighup(SIGNAL_ARGS)
 	if (debug)
 		elog(LOG, "%s, worker_spi_sighup", MyBgworkerEntry->bgw_name);
 
+	elog(LOG, "%s reloading configuration", MyBgworkerEntry->bgw_name);
+	got_sighup = true;
 	if (MyProc)
 		SetLatch(&MyProc->procLatch);
 }
@@ -84,7 +87,7 @@ initialize_worker_spi()
 	PushActiveSnapshot(GetTransactionSnapshot());
 
 	initStringInfo(&buf);
-	appendStringInfo(&buf, "select count(*) from pg_namespace where nspname = '%s'",
+	appendStringInfo(&buf, "SELECT count(*) FROM pg_namespace WHERE nspname = '%s'",
 					 stats_recorder_schema);
 
 	ret = SPI_execute(buf.data, true, 0);
@@ -141,8 +144,6 @@ worker_spi_main(void *main_arg)
 	 * Quote identifiers passed to us.  Note that this must be done after
 	 * initialize_worker_spi, because that routine assumes the names are not
 	 * quoted.
-	 *
-	 * Note some memory might be leaked here.
 	 */
 	initStringInfo(&buf);
 	appendStringInfo(&buf,
@@ -155,13 +156,14 @@ worker_spi_main(void *main_arg)
 		int		ret;
 		int		rc;
 
+		elog(LOG, "%s, worker_spi_main loop, stats_recorder_naptime is %d", MyBgworkerEntry->bgw_name, stats_recorder_naptime);
+
 		/*
 		 * Background workers mustn't call usleep() or any direct equivalent:
 		 * instead, they may wait on their process latch, which sleeps as
 		 * necessary, but is awakened if postmaster dies.  That way the
 		 * background process goes away immediately in an emergency.
 		 */
-		elog(LOG, "latch %d", stats_recorder_naptime);
 		rc = WaitLatch(&MyProc->procLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
 					   stats_recorder_naptime*1000L);
@@ -170,6 +172,12 @@ worker_spi_main(void *main_arg)
 		/* emergency bailout if postmaster has died */
 		if (rc & WL_POSTMASTER_DEATH)
 			proc_exit(1);
+
+        if (got_sighup)
+        {
+            got_sighup = false;
+            ProcessConfigFile(PGC_SIGHUP);
+        }
 
 		StartTransactionCommand();
 		SPI_connect();

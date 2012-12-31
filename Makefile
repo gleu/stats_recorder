@@ -1,4 +1,4 @@
-# contrib/stats_recorder_spi/Makefile
+# stats_recorder_spi/Makefile
 
 MODULES = stats_recorder_spi
 

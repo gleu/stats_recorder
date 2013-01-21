@@ -173,11 +173,11 @@ worker_spi_main(void *main_arg)
 		if (rc & WL_POSTMASTER_DEATH)
 			proc_exit(1);
 
-        if (got_sighup)
-        {
-            got_sighup = false;
-            ProcessConfigFile(PGC_SIGHUP);
-        }
+		if (got_sighup)
+		{
+			got_sighup = false;
+			ProcessConfigFile(PGC_SIGHUP);
+		}
 
 		StartTransactionCommand();
 		SPI_connect();

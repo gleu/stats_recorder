@@ -45,12 +45,12 @@ static bool	got_sigterm = false;
 static bool	got_sighup = false;
 
 static void
-worker_spi_sigterm(SIGNAL_ARGS)
+stats_recorder_spi_sigterm(SIGNAL_ARGS)
 {
 	int			save_errno = errno;
 
 	if (debug)
-		elog(LOG, "%s, worker_spi_sigterm", MyBgworkerEntry->bgw_name);
+		elog(LOG, "%s, stats_recorder_spi_sigterm", MyBgworkerEntry->bgw_name);
 
 	elog(LOG, "%s shutting down", MyBgworkerEntry->bgw_name);
 	got_sigterm = true;
@@ -61,10 +61,10 @@ worker_spi_sigterm(SIGNAL_ARGS)
 }
 
 static void
-worker_spi_sighup(SIGNAL_ARGS)
+stats_recorder_spi_sighup(SIGNAL_ARGS)
 {
 	if (debug)
-		elog(LOG, "%s, worker_spi_sighup", MyBgworkerEntry->bgw_name);
+		elog(LOG, "%s, stats_recorder_spi_sighup", MyBgworkerEntry->bgw_name);
 
 	elog(LOG, "%s reloading configuration", MyBgworkerEntry->bgw_name);
 	got_sighup = true;
@@ -73,7 +73,7 @@ worker_spi_sighup(SIGNAL_ARGS)
 }
 
 static void
-initialize_worker_spi()
+initialize_stats_recorder_spi()
 {
 	int		ret;
 	int		ntup;
@@ -81,7 +81,7 @@ initialize_worker_spi()
 	StringInfoData	buf;
 
 	if (debug)
-		elog(LOG, "%s, initialize_worker_spi", MyBgworkerEntry->bgw_name);
+		elog(LOG, "%s, initialize_stats_recorder_spi", MyBgworkerEntry->bgw_name);
 
 	StartTransactionCommand();
 	SPI_connect();
@@ -124,16 +124,16 @@ initialize_worker_spi()
 }
 
 static void
-worker_spi_main(Datum main_arg)
+stats_recorder_spi_main(Datum main_arg)
 {
 	StringInfoData	buf;
 
 	if (debug)
-		elog(LOG, "%s, worker_spi_main", MyBgworkerEntry->bgw_name);
+		elog(LOG, "%s, stats_recorder_spi_main", MyBgworkerEntry->bgw_name);
 
 	/* Set up the sigterm/sighup signal functions before unblocking them */
-	pqsignal(SIGTERM, worker_spi_sigterm);
-	pqsignal(SIGHUP, worker_spi_sighup);
+	pqsignal(SIGTERM, stats_recorder_spi_sigterm);
+	pqsignal(SIGHUP, stats_recorder_spi_sighup);
 
 	/* We're now ready to receive signals */
 	BackgroundWorkerUnblockSignals();
@@ -143,11 +143,11 @@ worker_spi_main(Datum main_arg)
 
 	elog(LOG, "%s initialized with schema %s",
 		 MyBgworkerEntry->bgw_name, stats_recorder_schema);
-	initialize_worker_spi();
+	initialize_stats_recorder_spi();
 
 	/*
 	 * Quote identifiers passed to us.  Note that this must be done after
-	 * initialize_worker_spi, because that routine assumes the names are not
+	 * initialize_stats_recorder_spi, because that routine assumes the names are not
 	 * quoted.
 	 */
 	initStringInfo(&buf);
@@ -161,7 +161,7 @@ worker_spi_main(Datum main_arg)
 		int		ret;
 		int		rc;
 
-		elog(LOG, "%s, worker_spi_main loop, stats_recorder_naptime is %d", MyBgworkerEntry->bgw_name, stats_recorder_naptime);
+		elog(LOG, "%s, stats_recorder_spi_main loop, stats_recorder_naptime is %d", MyBgworkerEntry->bgw_name, stats_recorder_naptime);
 
 		/*
 		 * Background workers mustn't call usleep() or any direct equivalent:
@@ -245,7 +245,7 @@ _PG_init(void)
 	worker.bgw_flags = BGWORKER_SHMEM_ACCESS |
 		BGWORKER_BACKEND_DATABASE_CONNECTION;
 	worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
-	worker.bgw_main = worker_spi_main;
+	worker.bgw_main = stats_recorder_spi_main;
 	worker.bgw_main_arg = (Datum) 0;
 	snprintf(worker.bgw_name, BGW_MAXLEN, "%s", stats_recorder_schema);
 	worker.bgw_restart_time = BGW_NEVER_RESTART;

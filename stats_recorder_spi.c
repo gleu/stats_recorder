@@ -7,11 +7,12 @@
  * Original code from PostgreSQL Global Development Group
  *   (worker_spi contrib module)
  *
- * Copyright (c) 2012, Guillaume Lelarge (Dalibo),
+ * Copyright (c) 2012-2013, Guillaume Lelarge (Dalibo),
  * guillaume.lelarge@dalibo.com
  *
  * -------------------------------------------------------------------------
  */
+
 #include "postgres.h"
 
 /* These are always necessary for a bgworker */
@@ -123,12 +124,16 @@ initialize_worker_spi()
 }
 
 static void
-worker_spi_main(void *main_arg)
+worker_spi_main(Datum main_arg)
 {
 	StringInfoData	buf;
 
 	if (debug)
 		elog(LOG, "%s, worker_spi_main", MyBgworkerEntry->bgw_name);
+
+	/* Set up the sigterm/sighup signal functions before unblocking them */
+	pqsignal(SIGTERM, worker_spi_sigterm);
+	pqsignal(SIGHUP, worker_spi_sighup);
 
 	/* We're now ready to receive signals */
 	BackgroundWorkerUnblockSignals();
@@ -241,9 +246,8 @@ _PG_init(void)
 		BGWORKER_BACKEND_DATABASE_CONNECTION;
 	worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
 	worker.bgw_main = worker_spi_main;
-	worker.bgw_sighup = worker_spi_sighup;
-	worker.bgw_sigterm = worker_spi_sigterm;
-	worker.bgw_name = "stats recorder";
+	worker.bgw_main_arg = (Datum) 0;
+	snprintf(worker.bgw_name, BGW_MAXLEN, "%s", stats_recorder_schema);
 	worker.bgw_restart_time = BGW_NEVER_RESTART;
 	RegisterBackgroundWorker(&worker);
 }

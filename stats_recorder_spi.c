@@ -7,7 +7,7 @@
  * Original code from PostgreSQL Global Development Group
  *   (worker_spi contrib module)
  *
- * Copyright (c) 2012-2013, Guillaume Lelarge (Dalibo),
+ * Copyright (c) 2012-2015, Guillaume Lelarge (Dalibo),
  * guillaume.lelarge@dalibo.com
  *
  * -------------------------------------------------------------------------
